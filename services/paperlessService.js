@@ -1201,36 +1201,38 @@ async getOrCreateDocumentType(name) {
     try {
       const currentDoc = await this.getDocument(documentId);
       
+      // --- Tag Merging ---
       if (updates.tags) {
         console.log(`[DEBUG] Current tags for document ${documentId}:`, currentDoc.tags);
         console.log(`[DEBUG] Adding new tags:`, updates.tags);
-        console.log(`[DEBUG] Current correspondent:`, currentDoc.correspondent);
-        console.log(`[DEBUG] New correspondent:`, updates.correspondent);
-                
+        
         const combinedTags = [...new Set([...currentDoc.tags, ...updates.tags])];
         updates.tags = combinedTags;
         
         console.log(`[DEBUG] Combined tags:`, combinedTags);
       }
 
-      // Always preserve existing correspondent to satisfy required field validation
-      // This maintains backward compatibility where existing correspondents are not overwritten
-      if (currentDoc.correspondent) {
-        if (updates.correspondent) {
-          console.log('[DEBUG] Document already has a correspondent, keeping existing one:', currentDoc.correspondent);
-        } else {
-          console.log('[DEBUG] Preserving existing correspondent in PATCH payload:', currentDoc.correspondent);
-        }
+      // --- Correspondent Preservation (FIXED) ---
+      // If a new correspondent ID is NOT provided in the update,
+      // preserve the existing one (which could be null) to satisfy API validation.
+      if (!updates.hasOwnProperty('correspondent')) {
+        console.log('[DEBUG] Preserving existing correspondent in PATCH payload:', currentDoc.correspondent);
         updates.correspondent = currentDoc.correspondent;
+      } else {
+        console.log('[DEBUG] Using new correspondent from update:', updates.correspondent);
       }
 
-      // Always include storage_path in the PATCH payload to satisfy required field validation
-      if (currentDoc.storage_path && !updates.storage_path) {
+      // --- Storage Path Preservation (FIXED) ---
+      // If a new storage_path is NOT provided in the update,
+      // preserve the existing one (which could be null) to satisfy API validation.
+      if (!updates.hasOwnProperty('storage_path')) {
         console.log('[DEBUG] Preserving existing storage_path in PATCH payload:', currentDoc.storage_path);
         updates.storage_path = currentDoc.storage_path;
+      } else {
+        console.log('[DEBUG] Using new storage_path from update:', updates.storage_path);
       }
 
-      // *** START: FIX FOR CUSTOM FIELDS ***
+      // --- Custom Field Merging/Preservation (FIXED) ---
       // Merge custom fields to prevent them from being overwritten
       if (updates.custom_fields && Array.isArray(updates.custom_fields)) {
         console.log('[DEBUG] Merging custom fields...');
@@ -1258,7 +1260,7 @@ async getOrCreateDocumentType(name) {
         console.log('[DEBUG] No new custom fields provided, preserving existing ones.');
         updates.custom_fields = currentDoc.custom_fields;
       }
-      // *** END: FIX FOR CUSTOM FIELDS ***
+      // --- End Custom Field Fix ---
 
       let updateData;
       try {
