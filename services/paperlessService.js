@@ -1230,6 +1230,36 @@ async getOrCreateDocumentType(name) {
         updates.storage_path = currentDoc.storage_path;
       }
 
+      // *** START: FIX FOR CUSTOM FIELDS ***
+      // Merge custom fields to prevent them from being overwritten
+      if (updates.custom_fields && Array.isArray(updates.custom_fields)) {
+        console.log('[DEBUG] Merging custom fields...');
+        
+        // Get the IDs of the custom fields being provided in the update
+        const updatedFieldIds = new Set(updates.custom_fields.map(cf => cf.field));
+        
+        // Filter out old fields that are being replaced by the new update
+        const existingFieldsToKeep = currentDoc.custom_fields.filter(
+            existingCf => !updatedFieldIds.has(existingCf.field)
+        );
+
+        // Combine the old fields (that aren't being updated) with the new/updated fields
+        const combinedCustomFields = [
+            ...existingFieldsToKeep,
+            ...updates.custom_fields
+        ];
+        
+        console.log(`[DEBUG] Combined ${combinedCustomFields.length} custom fields.`);
+        updates.custom_fields = combinedCustomFields;
+
+      } else {
+        // No new custom fields provided, so we must preserve all existing ones
+        // This is crucial for PATCH to not wipe them out
+        console.log('[DEBUG] No new custom fields provided, preserving existing ones.');
+        updates.custom_fields = currentDoc.custom_fields;
+      }
+      // *** END: FIX FOR CUSTOM FIELDS ***
+
       let updateData;
       try {
         if (updates.created) {
@@ -1293,7 +1323,6 @@ async getOrCreateDocumentType(name) {
       return null;
     }
   }
-}
 
 
 module.exports = new PaperlessService();
